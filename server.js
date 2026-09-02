@@ -6,6 +6,10 @@ import 'dotenv/config';
 const app = express();
 app.use(cors());
 
+app.get('/', (req, res) => {
+  res.json({ status: 'PCX Finance API is running' });
+});
+
 const robinhoodChain = defineChain({
   id: 4663,
   name: 'Robinhood Chain',
