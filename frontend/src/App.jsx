@@ -16,7 +16,7 @@ function App() {
     setTotalUsd(0);
 
     try {
-      const res = await fetch(`https://pcx-finance-production.up.railway.app/api/portfolio/${wallet}`);
+      const res = await fetch(`https://wholesome-smile-production-6536.up.railway.app/api/portfolio/${wallet}`);
       const data = await res.json();
       setTokens(data.tokens || []);
       setTotalUsd(data.totalUsd || 0);
