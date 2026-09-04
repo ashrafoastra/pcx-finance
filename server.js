@@ -4,8 +4,10 @@ import { createPublicClient, http, defineChain, formatUnits } from 'viem';
 import 'dotenv/config';
 
 const app = express();
-app.use(cors());
-
+app.use(cors({
+  origin: '*',
+  methods: ['GET'],
+}));
 app.get('/', (req, res) => {
   res.json({ status: 'PCX Finance API is running' });
 });
