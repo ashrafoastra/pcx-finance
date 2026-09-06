@@ -8,6 +8,15 @@ app.use(cors({
   origin: '*',
   methods: ['GET'],
 }));
+app.get('/api/all-tokens', async (req, res) => {
+  try {
+    const response = await fetch('https://robinhoodchain.blockscout.com/api/v2/tokens?type=ERC-20');
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch tokens' });
+  }
+});
 app.get('/', (req, res) => {
   res.json({ status: 'PCX Finance API is running' });
 });
