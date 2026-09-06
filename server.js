@@ -10,11 +10,17 @@ app.use(cors({
 }));
 app.get('/api/all-tokens', async (req, res) => {
   try {
-    const response = await fetch('https://robinhoodchain.blockscout.com/api/v2/tokens?type=ERC-20');
+    const response = await fetch('https://robinhoodchain.blockscout.com/api/v2/tokens?type=ERC-20', {
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!response.ok) {
+      throw new Error('Blockscout returned status ' + response.status);
+    }
     const data = await response.json();
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch tokens' });
+    console.error('Fetch error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch tokens: ' + err.message });
   }
 });
 app.get('/', (req, res) => {
