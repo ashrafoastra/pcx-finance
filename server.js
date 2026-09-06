@@ -8,10 +8,14 @@ app.use(cors({
   origin: '*',
   methods: ['GET'],
 }));
+
 app.get('/api/all-tokens', async (req, res) => {
   try {
     const response = await fetch('https://robinhoodchain.blockscout.com/api/v2/tokens?type=ERC-20', {
-      headers: { 'Accept': 'application/json' },
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
     });
     if (!response.ok) {
       throw new Error('Blockscout returned status ' + response.status);
@@ -23,6 +27,7 @@ app.get('/api/all-tokens', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch tokens: ' + err.message });
   }
 });
+
 app.get('/', (req, res) => {
   res.json({ status: 'PCX Finance API is running' });
 });
@@ -41,12 +46,10 @@ const erc20Abi = [
   { name: 'decimals', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint8' }] },
 ];
 
-// Known stablecoins — treat as fixed $1, don't trust thin liquidity pools for these
 const STABLECOINS = {
   '0x5411257cedf60bc40f4bead410bf8d02079056a2': 1.0, // USDG
 };
 
-// Fetch USD price for a token contract from DexScreener
 async function getTokenPrice(contractAddress) {
   const lower = contractAddress.toLowerCase();
   if (STABLECOINS[lower]) return STABLECOINS[lower];
@@ -55,7 +58,6 @@ async function getTokenPrice(contractAddress) {
     const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${contractAddress}`);
     const data = await res.json();
     if (data.pairs && data.pairs.length > 0) {
-      // Use the pair with the highest liquidity for the most reliable price
       const bestPair = data.pairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
       return parseFloat(bestPair.priceUsd) || 0;
     }
@@ -86,7 +88,6 @@ app.get('/api/portfolio/:wallet', async (req, res) => {
         client.readContract({ address: token.contractAddress, abi: erc20Abi, functionName: 'symbol' }),
         client.readContract({ address: token.contractAddress, abi: erc20Abi, functionName: 'decimals' }),
       ]);
-
       const balance = parseFloat(formatUnits(BigInt(token.tokenBalance), decimals));
       const price = await getTokenPrice(token.contractAddress);
       const usdValue = balance * price;
