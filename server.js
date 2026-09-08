@@ -11,7 +11,7 @@ app.use(cors({
 
 let cachedTokens = null;
 let cacheTimestamp = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 5 * 60 * 1000;
 
 app.get('/api/all-tokens', async (req, res) => {
   const now = Date.now();
@@ -27,6 +27,8 @@ app.get('/api/all-tokens', async (req, res) => {
     }
     const data = await response.json();
 
+    const validAddress = /^0x[a-fA-F0-9]{40}$/;
+
     const items = (data.data || [])
       .map(function (pool) {
         const attrs = pool.attributes || {};
@@ -38,13 +40,10 @@ app.get('/api/all-tokens', async (req, res) => {
         };
       })
       .filter(function (t) {
-        // Only keep genuinely valid Ethereum addresses (0x + 40 hex chars) —
-        // GeckoTerminal sometimes returns longer pool IDs instead of clean
-        // token addresses, which we don't want reaching the frontend.
-        return t.address_hash && /^0x[a-fA-F0-9]{40}$/.test(t.address_hash);
+        return t.address_hash && validAddress.test(t.address_hash);
       });
 
-    const reshaped = { items };
+    const reshaped = { items: items };
     cachedTokens = reshaped;
     cacheTimestamp = now;
 
@@ -77,7 +76,7 @@ const erc20Abi = [
 ];
 
 const STABLECOINS = {
-  '0x5411257cedf60bc40f4bead410bf8d02079056a2': 1.0, // USDG
+  '0x5411257cedf60bc40f4bead410bf8d02079056a2': 1.0,
 };
 
 async function getTokenPrice(contractAddress) {
@@ -85,10 +84,12 @@ async function getTokenPrice(contractAddress) {
   if (STABLECOINS[lower]) return STABLECOINS[lower];
 
   try {
-    const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${contractAddress}`);
+    const res = await fetch('https://api.dexscreener.com/latest/dex/tokens/' + contractAddress);
     const data = await res.json();
     if (data.pairs && data.pairs.length > 0) {
-      const bestPair = data.pairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
+      const bestPair = data.pairs.sort(function (a, b) {
+        return (b.liquidity && b.liquidity.usd ? b.liquidity.usd : 0) - (a.liquidity && a.liquidity.usd ? a.liquidity.usd : 0);
+      })[0];
       return parseFloat(bestPair.priceUsd) || 0;
     }
     return 0;
@@ -114,27 +115,31 @@ app.get('/api/portfolio/:wallet', async (req, res) => {
   for (const token of data.result.tokenBalances) {
     if (BigInt(token.tokenBalance) === 0n) continue;
     try {
-      const [symbol, decimals] = await Promise.all([
+      const results = await Promise.all([
         client.readContract({ address: token.contractAddress, abi: erc20Abi, functionName: 'symbol' }),
         client.readContract({ address: token.contractAddress, abi: erc20Abi, functionName: 'decimals' }),
       ]);
+      const symbol = results[0];
+      const decimals = results[1];
       const balance = parseFloat(formatUnits(BigInt(token.tokenBalance), decimals));
       const price = await getTokenPrice(token.contractAddress);
       const usdValue = balance * price;
       totalUsd += usdValue;
 
       tokens.push({
-        symbol,
-        balance,
-        price,
-        usdValue,
+        symbol: symbol,
+        balance: balance,
+        price: price,
+        usdValue: usdValue,
         contract: token.contractAddress,
       });
     } catch {}
   }
 
-  res.json({ wallet, tokens, totalUsd });
+  res.json({ wallet: wallet, tokens: tokens, totalUsd: totalUsd });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`API running on port ${PORT}`));
+app.listen(PORT, function () {
+  console.log('API running on port ' + PORT);
+});
