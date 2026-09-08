@@ -21,21 +21,34 @@ app.get('/api/all-tokens', async (req, res) => {
   }
 
   try {
-    const response = await fetch('https://robinhoodchain.blockscout.com/api/v2/tokens?type=ERC-20', {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-    });
+    // GeckoTerminal is built for programmatic access, unlike Blockscout
+    // which blocks non-browser traffic — more reliable long-term.
+    const response = await fetch('https://api.geckoterminal.com/api/v2/networks/robinhood/pools?page=1');
     if (!response.ok) {
-      throw new Error('Blockscout returned status ' + response.status);
+      throw new Error('GeckoTerminal returned status ' + response.status);
     }
     const data = await response.json();
 
-    cachedTokens = data;
+    // Reshape into the same format our frontend already expects
+    // (items with address_hash, name, symbol, icon_url).
+    const items = (data.data || [])
+      .map(function (pool) {
+        const attrs = pool.attributes || {};
+        const tokenAddress = attrs.address ? attrs.address.split('_').pop() : null;
+        return {
+          address_hash: attrs.address || null,
+          name: attrs.name ? attrs.name.split(' / ')[0] : 'Unknown',
+          symbol: attrs.name ? attrs.name.split(' / ')[0] : '?',
+          icon_url: null,
+        };
+      })
+      .filter(function (t) { return t.address_hash; });
+
+    const reshaped = { items };
+    cachedTokens = reshaped;
     cacheTimestamp = now;
 
-    res.json(data);
+    res.json(reshaped);
   } catch (err) {
     console.error('Fetch error:', err.message);
     if (cachedTokens) {
