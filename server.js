@@ -21,6 +21,24 @@ app.get('/api/all-tokens', async (req, res) => {
   }
 
   try {
+    const response = await fetch('https://robinhoodchain.blockscout.com/api/v2/tokens?type=ERC-20', {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    });
+    if (response.ok) {
+      const data = await response.json();
+      cachedTokens = data;
+      cacheTimestamp = now;
+      return res.json(data);
+    }
+    throw new Error('Blockscout returned ' + response.status);
+  } catch (blockscoutErr) {
+    console.error('Blockscout failed, falling back to GeckoTerminal:', blockscoutErr.message);
+  }
+
+  try {
     const validAddress = /^0x[a-fA-F0-9]{40}$/;
     const seen = {};
     const allItems = [];
@@ -29,7 +47,6 @@ app.get('/api/all-tokens', async (req, res) => {
       const response = await fetch('https://api.geckoterminal.com/api/v2/networks/robinhood/pools?page=' + page);
       if (!response.ok) continue;
       const data = await response.json();
-
       (data.data || []).forEach(function (pool) {
         const attrs = pool.attributes || {};
         const address = attrs.address;
@@ -47,14 +64,13 @@ app.get('/api/all-tokens', async (req, res) => {
     const reshaped = { items: allItems };
     cachedTokens = reshaped;
     cacheTimestamp = now;
-
     res.json(reshaped);
   } catch (err) {
-    console.error('Fetch error:', err.message);
+    console.error('Both sources failed:', err.message);
     if (cachedTokens) {
       return res.json(cachedTokens);
     }
-    res.status(500).json({ error: 'Failed to fetch tokens: ' + err.message });
+    res.status(500).json({ error: 'Failed to fetch tokens from any source' });
   }
 });
 
