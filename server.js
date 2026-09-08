@@ -9,7 +9,17 @@ app.use(cors({
   methods: ['GET'],
 }));
 
+let cachedTokens = null;
+let cacheTimestamp = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 app.get('/api/all-tokens', async (req, res) => {
+  const now = Date.now();
+
+  if (cachedTokens && (now - cacheTimestamp) < CACHE_DURATION) {
+    return res.json(cachedTokens);
+  }
+
   try {
     const response = await fetch('https://robinhoodchain.blockscout.com/api/v2/tokens?type=ERC-20', {
       headers: {
@@ -21,9 +31,16 @@ app.get('/api/all-tokens', async (req, res) => {
       throw new Error('Blockscout returned status ' + response.status);
     }
     const data = await response.json();
+
+    cachedTokens = data;
+    cacheTimestamp = now;
+
     res.json(data);
   } catch (err) {
     console.error('Fetch error:', err.message);
+    if (cachedTokens) {
+      return res.json(cachedTokens);
+    }
     res.status(500).json({ error: 'Failed to fetch tokens: ' + err.message });
   }
 });
