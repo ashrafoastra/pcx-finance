@@ -21,20 +21,15 @@ app.get('/api/all-tokens', async (req, res) => {
   }
 
   try {
-    // GeckoTerminal is built for programmatic access, unlike Blockscout
-    // which blocks non-browser traffic — more reliable long-term.
     const response = await fetch('https://api.geckoterminal.com/api/v2/networks/robinhood/pools?page=1');
     if (!response.ok) {
       throw new Error('GeckoTerminal returned status ' + response.status);
     }
     const data = await response.json();
 
-    // Reshape into the same format our frontend already expects
-    // (items with address_hash, name, symbol, icon_url).
     const items = (data.data || [])
       .map(function (pool) {
         const attrs = pool.attributes || {};
-        const tokenAddress = attrs.address ? attrs.address.split('_').pop() : null;
         return {
           address_hash: attrs.address || null,
           name: attrs.name ? attrs.name.split(' / ')[0] : 'Unknown',
@@ -42,7 +37,12 @@ app.get('/api/all-tokens', async (req, res) => {
           icon_url: null,
         };
       })
-      .filter(function (t) { return t.address_hash; });
+      .filter(function (t) {
+        // Only keep genuinely valid Ethereum addresses (0x + 40 hex chars) —
+        // GeckoTerminal sometimes returns longer pool IDs instead of clean
+        // token addresses, which we don't want reaching the frontend.
+        return t.address_hash && /^0x[a-fA-F0-9]{40}$/.test(t.address_hash);
+      });
 
     const reshaped = { items };
     cachedTokens = reshaped;
