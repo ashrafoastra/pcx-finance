@@ -21,29 +21,30 @@ app.get('/api/all-tokens', async (req, res) => {
   }
 
   try {
-    const response = await fetch('https://api.geckoterminal.com/api/v2/networks/robinhood/pools?page=1');
-    if (!response.ok) {
-      throw new Error('GeckoTerminal returned status ' + response.status);
-    }
-    const data = await response.json();
-
     const validAddress = /^0x[a-fA-F0-9]{40}$/;
+    const seen = {};
+    const allItems = [];
 
-    const items = (data.data || [])
-      .map(function (pool) {
+    for (let page = 1; page <= 5; page++) {
+      const response = await fetch('https://api.geckoterminal.com/api/v2/networks/robinhood/pools?page=' + page);
+      if (!response.ok) continue;
+      const data = await response.json();
+
+      (data.data || []).forEach(function (pool) {
         const attrs = pool.attributes || {};
-        return {
-          address_hash: attrs.address || null,
+        const address = attrs.address;
+        if (!address || !validAddress.test(address) || seen[address]) return;
+        seen[address] = true;
+        allItems.push({
+          address_hash: address,
           name: attrs.name ? attrs.name.split(' / ')[0] : 'Unknown',
           symbol: attrs.name ? attrs.name.split(' / ')[0] : '?',
           icon_url: null,
-        };
-      })
-      .filter(function (t) {
-        return t.address_hash && validAddress.test(t.address_hash);
+        });
       });
+    }
 
-    const reshaped = { items: items };
+    const reshaped = { items: allItems };
     cachedTokens = reshaped;
     cacheTimestamp = now;
 
