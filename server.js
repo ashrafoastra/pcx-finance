@@ -43,15 +43,22 @@ app.get('/api/all-tokens', async (req, res) => {
     const seen = {};
     const allItems = [];
 
-    for (let page = 1; page <= 5; page++) {
+    for (let page = 1; page <= 10; page++) {
       const response = await fetch('https://api.geckoterminal.com/api/v2/networks/robinhood/pools?page=' + page);
       if (!response.ok) continue;
       const data = await response.json();
-      (data.data || []).forEach(function (pool) {
+      if (!data.data || data.data.length === 0) break;
+
+      data.data.forEach(function (pool) {
         const attrs = pool.attributes || {};
-        const address = attrs.address;
+        const rel = pool.relationships || {};
+
+        const baseTokenId = rel.base_token && rel.base_token.data ? rel.base_token.data.id : null;
+        const address = baseTokenId ? baseTokenId.split('_').pop() : null;
+
         if (!address || !validAddress.test(address) || seen[address]) return;
         seen[address] = true;
+
         allItems.push({
           address_hash: address,
           name: attrs.name ? attrs.name.split(' / ')[0] : 'Unknown',
